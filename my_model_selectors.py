@@ -1,7 +1,4 @@
-import math
-import statistics
 import warnings
-import logging
 import numpy as np
 from hmmlearn.hmm import GaussianHMM
 from sklearn.model_selection import KFold
@@ -215,7 +212,7 @@ class SelectorCV(ModelSelector):
         for num_states in range(self.min_num_states, self.max_num_states + 1):
             log_likelihoods = []
             try:
-                # Check sufficient data to split using KFold
+                # Check if there is sufficient data to do a kfold split
                 if len(self.this_word_measurements) > 2:
                     for train_indices, test_indices in fold_splitter.split(self.this_word_measurements):
                         print("TRAIN indices:", train_indices, "TEST indices:", test_indices)
@@ -230,7 +227,6 @@ class SelectorCV(ModelSelector):
 
                 log_likelihoods.append(logL)
 
-                # Find average Log Likelihood of CV fold
                 avg_logL = np.mean(log_likelihoods)
                 model_and_score_tuples.append(tuple([model, avg_logL]))
             except Exception as e:
