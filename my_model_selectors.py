@@ -53,7 +53,7 @@ class ModelSelector(object):
         self.this_word_measurements = all_word_sequences[this_word]
         if len(self.this_word_measurements) == 0:
             raise RuntimeError("No measurements exist for {}:".format(self.this_word) )
-        self.X, self.this_word_sequences_and_lengths = all_word_Xlengths[this_word]
+        self.X, self.this_word_sequence_lengths = all_word_Xlengths[this_word]
         self.num_features = len(self.X[0])
         self.default_num_states = default_num_states
         self.min_num_states = min_num_states
@@ -64,7 +64,7 @@ class ModelSelector(object):
     def select(self):
         raise NotImplementedError
 
-    def __create_model__(self, num_states):
+    def __create_model__(self, num_states, measurements, measurement_lengths):
         # with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -74,7 +74,7 @@ class ModelSelector(object):
                                     n_iter=1000,
                                     random_state=self.random_seed, 
                                     verbose=False)\
-                        .fit(self.X, self.this_word_sequences_and_lengths)
+                        .fit(measurements, measurement_lengths)
             if self.verbose:
                 print("model created for {} with {} states".format(self.this_word, num_states))
             return hmm_model
@@ -95,7 +95,7 @@ class SelectorConstant(ModelSelector):
         :return: GaussianHMM object
         """
         best_num_components = self.default_num_states
-        return self.__create_model__(best_num_components)
+        return self.__create_model__(best_num_components, self.X, self.this_word_sequence_lengths)
 
 
 class SelectorBIC(ModelSelector):
@@ -138,8 +138,8 @@ class SelectorBIC(ModelSelector):
         model_to_bic_tuples = [] # This is a dictionary of { model: complexity score (bic) }
         for num_states in range(self.min_num_states, self.max_num_states + 1):
             try:
-                model = self.__create_model__(num_states)
-                logL = model.score(self.X, self.this_word_sequences_and_lengths)
+                model = self.__create_model__(num_states, self.X, self.this_word_sequence_lengths)
+                logL = model.score(self.X, self.this_word_sequence_lengths)
                 bic_score = SelectorBIC.__get_bic_score__(num_states, logL, self.num_features)
                 model_to_bic_tuples.append((model, bic_score))
             except Exception as e:
@@ -169,8 +169,8 @@ class SelectorDIC(ModelSelector):
         model_to_dic_tuples = [] # list of (model, dic_score) tuples
         for num_states in range(self.min_num_states, self.max_num_states + 1):
             try:
-                model = self.__create_model__(num_states)
-                logL = model.score(self.X, self.this_word_sequences_and_lengths)
+                model = self.__create_model__(num_states, self.X, self.this_word_sequence_lengths)
+                logL = model.score(self.X, self.this_word_sequence_lengths)
                 
                 # Score the same model with all the other words' data:
                 anti_logLs = [] # There's no need to keep track of words by idx. We collect whatever we succeed in scoring
@@ -204,15 +204,39 @@ class SelectorCV(ModelSelector):
     ''' select best model based on average log Likelihood of cross-validation folds
 
     Sources:
-    [1] https://discussions.udacity.com/t/understanding-better-model-selection/232987/12?u=safdar.kureishy
-    
+    [1] https://discussions.udacity.com/t/understanding-better-model-selection/232987/12
     '''
-    # TODO: Fix
-    def calc_best_score_cv(self, score_cv):
-        # Max of list of lists comparing each item by value at index 0
-        return max(score_cv, key = lambda x: x[0])
-
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings("ignore", category=RuntimeWarning)
-        return None
+
+        fold_splitter = KFold(n_splits = 3, shuffle = False, random_state = None)
+        model_and_score_tuples = []
+        for num_states in range(self.min_num_states, self.max_num_states + 1):
+            log_likelihoods = []
+            try:
+                # Check sufficient data to split using KFold
+                if len(self.this_word_measurements) > 2:
+                    for train_indices, test_indices in fold_splitter.split(self.this_word_measurements):
+                        print("TRAIN indices:", train_indices, "TEST indices:", test_indices)
+                        train_sequences, train_sequence_lengths = combine_sequences(train_indices, self.this_word_measurements)
+                        test_sequences, test_sequence_lengths = combine_sequences(test_indices, self.this_word_measurements)
+
+                        model = self.__create_model__(num_states, train_sequences, train_sequence_lengths)
+                        logL = model.score(test_sequences, test_sequence_lengths)
+                else:
+                    model = self.__create_model__(num_states, self.X, self.this_word_sequence_lengths)
+                    logL = model.score(self.X, self.this_word_sequence_lengths)
+
+                log_likelihoods.append(logL)
+
+                # Find average Log Likelihood of CV fold
+                avg_logL = np.mean(log_likelihoods)
+                model_and_score_tuples.append(tuple([model, avg_logL]))
+            except Exception as e:
+                if self.verbose:
+                    print (e)
+                    traceback.print_exc()
+                    print("failure on {} with {} states".format(self.this_word, num_states))
+        best_model = max(model_and_score_tuples, key = lambda x: x[1])[0] if model_and_score_tuples else None
+        return best_model
