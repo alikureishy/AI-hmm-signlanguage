@@ -215,7 +215,7 @@ class SelectorCV(ModelSelector):
                 # Check if there is sufficient data to do a kfold split
                 if len(self.this_word_measurements) > 2:
                     for train_indices, test_indices in fold_splitter.split(self.this_word_measurements):
-                        print("TRAIN indices:", train_indices, "TEST indices:", test_indices)
+#                         print("TRAIN indices:", train_indices, "TEST indices:", test_indices)
                         train_sequences, train_sequence_lengths = combine_sequences(train_indices, self.this_word_measurements)
                         test_sequences, test_sequence_lengths = combine_sequences(test_indices, self.this_word_measurements)
 

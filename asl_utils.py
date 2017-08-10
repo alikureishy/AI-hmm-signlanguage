@@ -6,6 +6,19 @@ RAW_FEATURES = ['left-x', 'left-y', 'right-x', 'right-y']
 GROUND_FEATURES = ['grnd-rx', 'grnd-ry', 'grnd-lx', 'grnd-ly']
 
 
+def check_errors(guesses, test_set):
+    error_count = 0
+    num_test_words = len(test_set.wordlist)
+    if len(guesses) != num_test_words:
+        print("Size of guesses must equal number of test words ({})!".format(num_test_words))
+    for word_id in range(num_test_words):
+        if guesses[word_id] != test_set.wordlist[word_id]:
+            error_count += 1
+    
+    wer = float(error_count) / float(num_test_words)
+    return error_count, num_test_words, wer
+
+
 def show_errors(guesses: list, test_set: SinglesData):
     """ Print WER and sentence differences in tabular form
 
@@ -14,19 +27,12 @@ def show_errors(guesses: list, test_set: SinglesData):
     :return:
         nothing returned, prints error report
 
-    WER = (S+I+D)/N  but we have no insertions or deletions for isolated words so WER = S/N
+    WER = (error_count+I+D)/total_words  but we have no insertions or deletions for isolated words so WER = error_count/total_words
     """
-    S = 0
-    N = len(test_set.wordlist)
-    num_test_words = len(test_set.wordlist)
-    if len(guesses) != num_test_words:
-        print("Size of guesses must equal number of test words ({})!".format(num_test_words))
-    for word_id in range(num_test_words):
-        if guesses[word_id] != test_set.wordlist[word_id]:
-            S += 1
+    error_count, num_test_words, wer = check_errors(guesses, test_set)
 
-    print("\n**** WER = {}".format(float(S) / float(N)))
-    print("Total correct: {} out of {}".format(N - S, N))
+    print("\n**** WER = {}".format(wer))
+    print("Total correct: {} out of {}".format(num_test_words - error_count, num_test_words))
     print('Video  Recognized                                                    Correct')
     print('=====================================================================================================')
     for video_num in test_set.sentences_index:
