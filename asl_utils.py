@@ -60,7 +60,7 @@ def train_all_words(training: WordsData, model_selector):
     model_dict = {}
     for word in training.words:
         model = model_selector(sequences, Xlengths, word,
-                               n_constant=3).select()
+                               default_num_states=3).select()
         model_dict[word] = model
     return model_dict
 
